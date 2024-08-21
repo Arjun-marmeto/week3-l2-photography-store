@@ -1,205 +1,225 @@
-let userInputEl = document.querySelector("#searchBox");
-let searchResultsSection = document.querySelector("#searchResultsSection");
-let carouselList1El = document.querySelector("#carouselList1");
-let carouselList2El = document.querySelector("#carouselList2");
-let dropDownEl = document.querySelector("#dropDown");
 
-let favtMoviesList = [];
-let recommendedMoviesList = [];
+const apiKey = "GQ3jXKM8wGlbsOJuMKNb2VHQbGcrTAIEBM0MTaoLLUdyXsPE63r82sJJ";
+const searchInput = document.getElementById("search-input");
+const searchButton = document.getElementById("search-button");
+const firstImageSection = document.getElementById("first-image");
+const similarResultsSection = document.getElementById("similar-results");
+const favoritesSection = document.getElementById("favorites");
+let favorites = JSON.parse(localStorage.getItem("favorites")) || [];
 
-// Rendering User Searched Movie
-async function renderSearchedMovie(movieData) {
-  const { title, overview, genres, poster_path, release_date, id } = movieData;
+// Hide the sections initially
+document.getElementById("similar-results-section").style.display = "none";
+document.getElementById("favorites-section").style.display = "none";
 
-  let release_date_formate = release_date.split("-");
-  const genereNames = await getGenreNames(id);
+searchButton.addEventListener("click", () => {
+  const searchTerm = searchInput.value;
+  fetchImages(searchTerm);
+});
 
-  searchResultsSection.innerHTML = `
-  <img class="search-movie" src= https://image.tmdb.org/t/p/w500/${poster_path} alt=${title} />
-  <div class="search-movie-content">
-  <h1 class="search-movie-title">${title}</h1>
-  <p class="genere">${genereNames}</p>
-  <p class="search-movie-release-date">Release Date: ${release_date_formate[2]}/${release_date_formate[1]}/${release_date_formate[0]}</p>
-  <p class="search-movie-description">${overview}</p>
-  </div>
-  `;
+async function fetchImages(searchTerm) {
+  const response = await fetch(
+    `https://api.pexels.com/v1/search?query=${searchTerm}`,
+    {
+      headers: {
+        Authorization: apiKey,
+      },
+    }
+  );
+  const data = await response.json();
+  displayFirstImage(data.photos[0]);
+  displaySimilarResults(data.photos);
 }
 
-// Adding Movie Into Favorites List
-function addFavMovie(favtMovie, genereNames) {
-  let findObj = favtMoviesList.find((each) => each.id === favtMovie.id);
-  if (findObj === undefined) {
-    favtMoviesList.push({ ...favtMovie, genereNames, isFavt: true });
-    recommendedMoviesList = recommendedMoviesList.filter(
-      (each) => each.id !== favtMovie.id
-    );
-  } else {
-    favtMoviesList = favtMoviesList.filter((each) => each.id !== favtMovie.id);
-  }
-
-  localStorage.setItem("favtMovies", JSON.stringify(favtMoviesList));
-  renderCarousel(recommendedMoviesList, carouselList1El, splide1);
-  renderCarousel(favtMoviesList, carouselList2El, splide2);
+function displayFirstImage(image) {
+  firstImageSection.innerHTML = `
+        <div class="flex items-center gap-10">
+            <div class="w-[476px] h-[335px]">
+                <img src="${image.src.medium}" alt="${image.alt}" class="w-full h-full rounded mb-4" />
+            </div>
+            <div class="flex flex-col gap-3">
+                <h3 class="text-2xl font-bold">${image.alt}</h3>
+                <div>
+                    <p class="text-red-600 mb-3">Photographer: ${image.photographer}</p>
+                    <a href="${image.photographer_url}" target="_blank" class="text-sm md:text-base text-white px-4 py-2 bg-red-600">Explore more</a>
+                </div>
+            </div>
+        </div>`;
 }
 
-// Render Movies Carousel
-async function renderCarousel(movieList, listEl, splide) {
-  listEl.textContent = "";
-  movieList.forEach(async (each) => {
-    const { genre_ids, title, poster_path, id } = each;
-    const genereNames = await getGenreNames(id);
+function displaySimilarResults(images) {
+  const similarResultsSection = document.getElementById(
+    "similar-results-section"
+  );
+  const similarResults = document.getElementById("similar-results");
 
-    splide.destroy();
-    let listItem = document.createElement("li");
-    listItem.classList.add("splide__slide");
-    listEl.appendChild(listItem);
+  if (images.length > 1) {
+    // More than one image means we have similar results
+    similarResultsSection.style.display = "block"; // Show the section
+    similarResults.innerHTML = ""; // Clear the list
 
-    let heartElContainer = document.createElement("div");
-    heartElContainer.classList.add("favt-heart-icon-container");
-    listItem.appendChild(heartElContainer);
+    images.forEach((image, index) => {
+      if (index === 0) return; // Skip the first image since it's displayed separately
 
-    let heartColor = each.isFavt !== undefined && "red-heart";
-
-    let heartEL = document.createElement("i");
-    heartEL.classList.add("fa-solid", "fa-heart", "heart-icon", heartColor);
-    heartEL.addEventListener("click", () => {
-      addFavMovie(each, genereNames);
+      const imageCard = document.createElement("li");
+      imageCard.classList.add("splide__slide");
+      imageCard.innerHTML = `
+                <div class="relative border pb-3 rounded bg-white w-[300px] h-[433px] mx-auto">
+                    <img src="${image.src.medium}" alt="${image.alt}" class="w-full h-[80%] rounded mb-4">
+                    <button class="wishlist-button absolute top-2 right-2 bg-gray-200 p-2 rounded-full" data-index="${index}">
+                        🩶
+                    </button>
+                    <div class="px-2">
+                    <h3 class="font-semibold">${image.alt}</h3>
+                    <p class="text-gray-600">Photographer: ${image.photographer}</p>
+                    </div>
+                </div>`;
+      similarResults.appendChild(imageCard);
     });
-    heartElContainer.appendChild(heartEL);
 
-    let imgEl = document.createElement("img");
-    imgEl.classList.add("carousel-img");
-    imgEl.src = `https://image.tmdb.org/t/p/w500/${poster_path}`;
-    listItem.appendChild(imgEl);
+    new Splide("#similar-results-slider", {
+      type: "loop",
+      perPage: 5,
+      gap: "1rem",
+      pagination: false,
+      breakpoints: {
+        1300: {
+            perPage: 4,
+        },
+        1024: {
+          perPage: 3, // Number of slides per page for medium screens
+        },
+        900: {
+          perPage: 2, // Number of slides per page for small screens
+        },
+        600: {
+            perPage: 1,
+        }
+      },
+    }).mount();
 
-    let splideMovieContent = document.createElement("div");
-    splideMovieContent.classList.add("carousel-movie-content");
-    listItem.appendChild(splideMovieContent);
+    attachWishlistListeners();
+  } else {
+    similarResultsSection.style.display = "none"; // Hide the section if no similar results
+  }
+}
 
-    let movieTitle = document.createElement("p");
-    movieTitle.classList.add("movie-title");
-    movieTitle.textContent = title;
-    splideMovieContent.appendChild(movieTitle);
+function attachWishlistListeners() {
+  const wishlistButtons = document.querySelectorAll(".wishlist-button");
+  wishlistButtons.forEach((button) => {
+    button.addEventListener("click", (event) => {
+      const card = event.target.closest(".relative"); // Find the closest parent element with the 'relative' class
+      const image = card.querySelector("img"); // Find the image within the same card
+      const imageData = {
+        src: image.src,
+        alt: image.alt,
+        photographer: card.querySelector("p.text-gray-600").textContent, // Photographer's name
+      };
 
-    let genreEl = document.createElement("p");
-    genreEl.classList.add("genre-para");
-    genreEl.textContent = genereNames;
-    splideMovieContent.appendChild(genreEl);
+      // Add to favorites
+      addToFavorites(imageData);
 
-    splide.mount();
+      // Remove the item from the Similar Results section
+      card.parentElement.remove();
+
+      // Re-initialize the Splide slider for similar results
+      const splide = document.querySelector("#similar-results-slider").splide;
+      splide.refresh();
+    });
   });
 }
 
-// Get Genre Names Based on Genre Ids
-async function getGenreNames(id) {
-  const responseMovie = await fetch(
-    `https://api.themoviedb.org/3/movie/${id}?api_key=2ad18877c2ecce5382256b80fefda964`
-  );
-
-  const movieData = await responseMovie.json();
-  const { genres } = movieData;
-  let genereNames = genres.map((each) => each.name);
-
-  return genereNames.join(",");
+function addToFavorites(image) {
+  favorites.push(image);
+  localStorage.setItem("favorites", JSON.stringify(favorites));
+  renderFavorites();
 }
 
-// Fetching Movies Data
-async function fetchData(e, movieName) {
-  let userInputElvalue = movieName === undefined ? e.target.value : movieName;
+function removeFromFavorites(index) {
+  favorites.splice(index, 1);
+  localStorage.setItem("favorites", JSON.stringify(favorites));
+  renderFavorites();
+}
 
-  const responseDetails = await fetch(
-    `https://api.themoviedb.org/3/search/movie?query=${userInputElvalue}&api_key=2ad18877c2ecce5382256b80fefda964`
-  );
+// Attach event listener for the sort options
+document.getElementById("sort-options").addEventListener("change", function () {
+  const sortBy = this.value;
+  sortFavorites(sortBy);
+});
 
-  const responseMovieData = await responseDetails.json();
-  const { genre_ids } = responseMovieData.results[0];
+// Function to sort the favorites array and re-render it
+function sortFavorites(sortBy) {
+  favorites.sort((a, b) => {
+    if (sortBy === "title") {
+      return a.alt.localeCompare(b.alt); // Sort by alt text
+    } else if (sortBy === "alt") {
+      return a.alt.localeCompare(b.alt); // Sort by alt text (same as title in this case)
+    }
+  });
 
-  const responseRecommended = await fetch(
-    `https://api.themoviedb.org/3/discover/movie?api_key=2ad18877c2ecce5382256b80fefda964&with_genres=${genre_ids.join(
-      ","
-    )}`
-  );
+  renderFavorites(); // Re-render the favorites section after sorting
+}
 
-  const recommendedMovies = await responseRecommended.json();
-  recommendedMoviesList = recommendedMovies.results;
-  // console.log(recommendedMoviesList);
+// Function to render the favorites section
+function renderFavorites() {
+  const favoritesSection = document.getElementById("favorites-section");
+  const favoritesElement = document.getElementById("favorites");
 
-  const localFavtMovies = localStorage.getItem("favtMovies");
-  if (localFavtMovies === null) {
-    favtMoviesList = [];
+  if (favorites.length > 0) {
+    favoritesSection.style.display = "block"; // Show the section
+    favoritesElement.innerHTML = ""; // Clear the list
+
+    favorites.forEach((image, index) => {
+      const imageCard = document.createElement("li");
+      imageCard.classList.add("splide__slide");
+      imageCard.innerHTML = `
+                <div class="pb-3 relative border rounded bg-white w-[300px] h-[433px] mx-auto">
+                    <img src="${image.src}" alt="${image.alt}" class="w-full h-[80%] rounded mb-4">
+                    <button class="wishlist-button absolute top-1 right-5 bg-gray-200 p-2 rounded-full" data-index="${index}">
+                        ❤️
+                    </button>
+                    <div class="px-2 overflow-x-scroll">
+                        <h3 class="font-semibold">${image.alt}</h3>
+                        <p class="text-gray-600">Photographer: ${image.photographer}</p>
+                    </div>
+                </div>`;
+      favoritesElement.appendChild(imageCard);
+    });
+
+    new Splide("#favorites-slider", {
+      perPage: 5,
+      gap: "1rem",
+      pagination: false,
+      breakpoints: {
+        1300: {
+            perPage: 4,
+        },
+        1024: {
+          perPage: 3, // Number of slides per page for medium screens
+        },
+        900: {
+          perPage: 2, // Number of slides per page for small screens
+        },
+        600: {
+            perPage: 1,
+        }
+      },
+    }).mount();
+
+    attachRemoveListeners();
   } else {
-    favtMoviesList = JSON.parse(localFavtMovies);
+    favoritesSection.style.display = "none"; // Hide the section if no favorites
   }
-
-  recommendedMoviesList = recommendedMoviesList.filter(
-    (recommendedMovie) =>
-      !favtMoviesList.some(
-        (favoriteMovie) => favoriteMovie.id === recommendedMovie.id
-      )
-  );
-  // console.log("filter", recommendedMoviesList);
-
-  renderSearchedMovie(responseMovieData.results[0]);
-  renderCarousel(recommendedMoviesList, carouselList1El, splide1);
-  renderCarousel(favtMoviesList, carouselList2El, splide2);
 }
 
-// Filter Based on Dropdown Option
-function optionChange() {
-  switch (this.value) {
-    case "name":
-      favtMoviesList.sort((a, b) => a.title.localeCompare(b.title));
-      break;
-
-    case "year":
-      favtMoviesList.sort(
-        (a, b) =>
-          parseInt(a.release_date.split("-")[0]) -
-          parseInt(b.release_date.split("-")[0])
-      );
-      break;
-
-    case "sort":
-      favtMoviesList = favtMoviesList;
-      break;
-  }
-
-  renderCarousel(favtMoviesList, carouselList2El, splide2);
+function attachRemoveListeners() {
+  const removeButtons = document.querySelectorAll(".wishlist-button");
+  removeButtons.forEach((button) => {
+    button.addEventListener("click", (event) => {
+      const index = event.target.dataset.index;
+      removeFromFavorites(index);
+    });
+  });
 }
 
-let splide1 = new Splide("#carousel1", {
-  pagination: false,
-  perPage: 5,
-  gap: "20px",
-  breakpoints: {
-    425: {
-      perPage: 2,
-    },
-    768: {
-      perPage: 3,
-    },
-  },
-});
-
-let splide2 = new Splide("#carousel2", {
-  pagination: false,
-  perPage: 5,
-  gap: "20px",
-  breakpoints: {
-    425: {
-      perPage: 2,
-    },
-    768: {
-      perPage: 3,
-    },
-  },
-});
-
-function getData() {
-  fetchData(undefined, "avatar");
-}
-
-getData();
-
-userInputEl.addEventListener("change", fetchData);
-dropDownEl.addEventListener("change", optionChange);
+// Initial render of favorites
+renderFavorites();
